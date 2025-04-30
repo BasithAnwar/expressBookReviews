@@ -19,7 +19,6 @@ const authenticatedUser = (username,password)=>{ //returns boolean
 regd_users.post("/login", (req,res) => {
   //Write your code here
     const {username,password}=req.body;
-    console.log(username,password);
     if(isValid(username) && authenticatedUser(username,password)){
         const token=jwt.sign({username:username},"",{expiresIn:'1h',algorithm:'none'});
         return res.status(200).json({message:username +" logged in successfully",token:token});
@@ -31,7 +30,29 @@ regd_users.post("/login", (req,res) => {
 // Add a book review
 regd_users.put("/auth/review/:isbn", (req, res) => {
   //Write your code here
+  const isbn=req.params.isbn;
+  const review=req.query;
+  const token=req.headers.authorization.split(' ')[1];
+  console.log(token);
+  jwt.verify(token, Bearer,{algorithms:[]},(err,decoded)=>{
+    if(err)
+    {
+        return res.status(403).json({message:"Access denied"});
+    }
+    if(users[isbn])
+  {
+    const username=decoded.username;
+    const reviewindex=users[isbn].findIndex(user=>user.username===username);
+    if(reviewindex>-1){
+        users[isbn][reviewindex].reviews=review;
+    }else{
+        users[isbn][reviewindex].reviews.push({username:username,review:review});
+    }
+    return res.status(200).json({message:"review added successfully"})
+  }
   return res.status(300).json({message: "Yet to be implemented"});
+  })
+  
 });
 
 module.exports.authenticated = regd_users;
