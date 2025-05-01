@@ -1,60 +1,64 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 let books = require("./booksdb.js");
 const regd_users = express.Router();
 
 let users = [];
 
-const isValid = (username)=>{ //returns boolean
-//write code to check is the username is valid
-    return users.some(user=>user.username===username);
-}
+const isValid = (username)=>{
+  let userswithsamename = users.filter((user)=>{
+    return user.username === username
+  });
+  if(userswithsamename.length > 0){
+    return true;
+  } else {
+    return false;
+  }}
 
-const authenticatedUser = (username,password)=>{ //returns boolean
-//write code to check if username and password match the one we have in records.
-    return users.some(user=>user.username===username && user.password===password);
-}
-
-//only registered users can login
-regd_users.post("/login", (req,res) => {
-  //Write your code here
-    const {username,password}=req.body;
-    if(isValid(username) && authenticatedUser(username,password)){
-        const token=jwt.sign({username:username},"",{expiresIn:'1h',algorithm:'none'});
-        return res.status(200).json({message:username +" logged in successfully",token:token});
-    }else{
-        return res.status(403).json({message: "Incorrect username/password"});
-    }
-});
-
-// Add a book review
-regd_users.put("/auth/review/:isbn", (req, res) => {
-  //Write your code here
-  const isbn=req.params.isbn;
-  const review=req.query;
-  const token=req.headers.authorization.split(' ')[1];
-  console.log(token);
-  jwt.verify(token, Bearer,{algorithms:[]},(err,decoded)=>{
-    if(err)
-    {
-        return res.status(403).json({message:"Access denied"});
-    }
-    if(users[isbn])
-  {
-    const username=decoded.username;
-    const reviewindex=users[isbn].findIndex(user=>user.username===username);
-    if(reviewindex>-1){
-        users[isbn][reviewindex].reviews=review;
-    }else{
-        users[isbn][reviewindex].reviews.push({username:username,review:review});
-    }
-    return res.status(200).json({message:"review added successfully"})
-  }
-  return res.status(300).json({message: "Yet to be implemented"});
-  })
   
+const authenticatedUser = (username,password)=>{
+  let validusers = users.filter((user)=>{
+    return (user.username === username && user.password === password)
+  });
+  if(validusers.length > 0){
+    return true;
+  } else {
+    return false;
+  }
+}
+// Add a book review 
+regd_users.put("/auth/review/:isbn", async (req, res) => {
+  let isbn = parseInt(req.params.isbn) ;
+  let username = req.session.authorization['username'] ;
+  let review = req.query.review ;
+  let book = books[isbn] ;
+  let exist =await book.reviews.find((review) => {
+    return (
+      review.username === username
+    )
+  })
+  if(!book)
+    return res.status(404).json({error : 'there is no book with this isbn : '+isbn}) ;
+  if(exist){
+    await book.reviews.map((review) => {
+      if(review.username == username){
+        review.review = review
+      }
+    })
+    res.status(200).json({message:"Modified review"})
+  }
+  else {
+    await book.reviews.push({username,review}) ;
+    return res.status(200).json({message: "Added review successfully"});
+  }
 });
+regd_users.delete("/auth/review/:isbn",async (req,res)=> {
+  let isbn = parseInt(req.params.isbn) ;
+  let username = req.session.authorization['username'] ;
+  books[isbn].reviews = await [...books[isbn].reviews.filter(review => review.username !== username)]
+  return res.status(200).json({message : "Deleted review successfully"})
+})
 
 module.exports.authenticated = regd_users;
 module.exports.isValid = isValid;
 module.exports.users = users;
+module.exports.authenticatedUser = authenticatedUser;
